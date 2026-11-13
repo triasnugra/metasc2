@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>metascalp — Mesin Analisis Scalping Crypto</title>
+<style>
+:root{--bg:#0b0e14;--card:#141924;--line:#232c3f;--txt:#e8ecf4;--mut:#9aa7bd;--green:#22c07a;--red:#ef4444;--amber:#f59e0b;--blue:#3b82f6}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--txt);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+header{padding:18px 20px;border-bottom:1px solid var(--line);display:flex;gap:12px;flex-wrap:wrap;align-items:center;justify-content:space-between}
+h1{font-size:20px;margin:0}h1 span{color:var(--green)}p.sub{color:var(--mut);margin:4px 0 0;font-size:13px}
+button,select,input{background:#1d2637;color:var(--txt);border:1px solid var(--line);border-radius:10px;padding:9px 12px;font-size:14px}
+button{cursor:pointer}button.primary{background:var(--green);color:#06130c;border-color:var(--green);font-weight:700}
+main{max-width:1180px;margin:0 auto;padding:16px;display:grid;gap:14px}
+.grid{display:grid;gap:14px}.g3{grid-template-columns:repeat(3,1fr)}.g2{grid-template-columns:1fr 1fr}
+@media(max-width:820px){.g3,.g2{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px}
+.card h2{font-size:14px;letter-spacing:.08em;text-transform:uppercase;color:var(--mut);margin:0 0 10px}
+.big{font-size:30px;font-weight:800}.mut{color:var(--mut);font-size:13px}
+.pill{display:inline-block;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:700}
+.pill.green{background:#123324;color:#7ef0b2}.pill.red{background:#33161c;color:#fca5a5}.pill.amber{background:#33250f;color:#fcd34d}.pill.blue{background:#12233d;color:#93c5fd}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:8px 6px;border-bottom:1px solid var(--line);text-align:left}th{color:var(--mut)}
+.sig{border-left:4px solid var(--green);padding:12px;background:#10161f;border-radius:10px;margin:8px 0}
+.sig.short{border-color:var(--red)}.mono{font-family:ui-monospace,Menlo,monospace;font-size:12px;white-space:pre-wrap}
+.kpi{display:flex;gap:8px;flex-wrap:wrap}.kpi div{background:#0f1420;border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-width:120px}
+.kpi b{font-size:20px;display:block}footer{padding:20px;text-align:center;color:var(--mut);font-size:12px}
+a{color:#7dd3fc}
+</style></head>
+<body>
+<header><div><h1>metascalp <span>● scalping engine</span></h1><p class="sub">H1 range → M15 struktur → M5 trigger. Sweep → Trigger → Entry. Tanpa trigger, tanpa trade. Price Action + Heatmap. Low drawdown.</p></div>
+<div><select id="accountSel"><option value="1000">$1.000</option><option value="5000">$5.000</option><option value="10000" selected>$10.000</option><option value="50000">$50.000</option></select> <button class="primary" id="scanBtn">🔍 Scan Live</button> <button id="btBtn">📊 Backtest BTC</button></div></header>
+<main>
+<div class="grid g3">
+<div class="card"><h2>Season / Regime (BTC)</h2><div class="big" id="season">—</div><div class="mut" id="seasonReason">Klik Scan Live</div><div style="margin-top:10px"><span class="pill blue" id="sessionPill">—</span> <span class="mut" id="clock"></span></div></div>
+<div class="card"><h2>BTC H1 Box</h2><div class="big" id="btcPrice">—</div><div class="mut" id="btcBox">—</div><div class="mut" id="btcPos">—</div></div>
+<div class="card"><h2>Daily Guard</h2><div class="kpi"><div><b id="gTrades">0 / 5</b><span class="mut">trades hari ini</span></div><div><b id="gPnl">0.00%</b><span class="mut">PnL hari ini</span></div><div><b id="gLoss">0</b><span class="mut">loss beruntun</span></div></div><div class="mut" id="gMsg" style="margin-top:8px">Guard disimpan di browser ini (localStorage). 2 loss → cooldown 60 mnt. Max loss harian 1% → stop.</div><button id="resetGuard" style="margin-top:8px">Reset guard hari ini</button></div>
+</div>
+
+<div class="card"><h2>Live Signals — 8 Simbol</h2><div class="mut">TRADE = lolos gate (skor ≥60, RR ≥1.5, SL ≤0.80%, tidak di tengah range, tidak chasing). WAIT = tidak ada setup / tidak lolos gate. Ini sinyal, bukan auto-trade.</div><div id="signals"></div></div>
+
+<div class="grid g2">
+<div class="card"><h2>Kalkulator Risiko</h2><label class="mut">Entry</label><br><input id="cEntry" type="number" step="any" value="100000"><br><br><label class="mut">Stop Loss (invalidation)</label><br><input id="cSl" type="number" step="any" value="99500"><br><br><label class="mut">Akun $</label><br><input id="cAcct" type="number" value="10000"><br><br><button id="calcBtn">Hitung size</button><div class="mono" id="calcOut" style="margin-top:10px"></div></div>
+<div class="card"><h2>Backtest (di browser)</h2><div class="mut">Jalankan backtest walk-forward BTCUSDT di browser dengan data Binance terbaru. Audit gate ikut dicek.</div><div id="btOut" style="margin-top:10px"><span class="mut">Belum dijalankan.</span></div><div class="mono" id="btDetail"></div></div>
+</div>
+
+<div class="card"><h2>Playbook — baca sebelum trade</h2>
+<table><tr><th>Setup</th><th>Arti</th><th>Invalidasi</th></tr>
+<tr><td><b>SWEEP_RECLAIM</b></td><td>Wick di bawah range low / Monday low, close balik ke dalam + trigger</td><td>Di bawah wick sweep</td></tr>
+<tr><td><b>RANGE_DEVIATION</b></td><td>Deviasi keluar range gagal, balik ke dalam + trigger</td><td>Di bawah/atas deviasi</td></tr>
+<tr><td><b>PULLBACK</b></td><td>Impuls → pullback tahan di EMA20 / mid → trigger searah</td><td>Di bawah low pullback</td></tr>
+<tr><td><b>SQUEEZE</b></td><td>Box &lt;0.8% → breakout + trigger. Box adalah kunci squeeze.</td><td>Kembali ke dalam box</td></tr>
+<tr><td><b>RECLAIM</b></td><td>Level hilang lalu direclaim + trigger (INJ)</td><td>Di bawah level reclaim</td></tr></table>
+<p class="mut">Aturan keras: tengah range = NO TRADE. Sentuhan ke-3 = setup tidak valid. Entry &gt;0.10% dari trigger close = CANCEL (jangan chase). TP1 1.5R ambil 60%, SL ke breakeven, TP2 2.5R. 2 loss → cooldown. Max loss harian 1% → stop. Heatmap hanya konfirmasi, tidak pernah memicu entry sendiri.</p>
+<p class="mut">Sumber doktrin: file <i>no tanggal postingan.docx</i> — lihat SCALPING.md untuk pemetaan lengkap postingan → kode.</p>
+</div>
+</main>
+<footer>metascalp v1.0 — signal engine, bukan auto-trader. Backtest ≠ jaminan. Selalu cek audit gate sebelum live. Data: Binance public API (tanpa API key).</footer>
+<script type="module">
+import { CONFIG } from './config.mjs';
+import { fetchKlines, regimeFromBTC, findRange, rangePosition, sessionOf } from './core.mjs';
+import { scanMarket } from './forward-lib.mjs';
+import { runBacktest } from './backtest-lib.mjs';
+import { auditBacktest } from './audit-gate.mjs';
+import { positionSize } from './trade-sim.mjs';
+import { dailyGuard } from './gate.mjs';
+
+const $ = (id) => document.getElementById(id);
+function guardState(){ try{ return JSON.parse(localStorage.getItem('metascalp_guard')||'{"tradesToday":0,"pnlTodayPct":0,"consecutiveLosses":0,"lastLossAt":0}'); }catch{ return {tradesToday:0,pnlTodayPct:0,consecutiveLosses:0,lastLossAt:0}; } }
+function renderGuard(){ const s=guardState(); $('gTrades').textContent=`${s.tradesToday} / ${CONFIG.risk.maxTradesPerDay}`; $('gPnl').textContent=`${s.pnlTodayPct.toFixed(2)}%`; $('gLoss').textContent=s.consecutiveLosses; const g=dailyGuard(s); $('gMsg').textContent = g.allowed ? 'Guard: BOLEH trade (jika ada sinyal TRADE).' : 'Guard: STOP — '+g.reasons.join(' • '); }
+$('resetGuard').onclick=()=>{ localStorage.removeItem('metascalp_guard'); renderGuard(); };
+setInterval(()=>{ $('clock').textContent = new Date().toUTCString().slice(17,25)+' UTC • Sesi: '+sessionOf(new Date()); },1000);
+renderGuard();
+
+$('scanBtn').onclick = async ()=>{
+  $('scanBtn').disabled=true; $('scanBtn').textContent='Scanning…'; $('signals').innerHTML='<p class="mut">Mengambil H1/M15/M5 + depth dari Binance…</p>';
+  try{
+    const account = +$('accountSel').value;
+    const res = await scanMarket(CONFIG.symbols, { account });
+    $('season').textContent = res.season;
+    $('seasonReason').textContent = res.results.find(r=>r.symbol==='BTCUSDT')?.reason || '';
+    $('sessionPill').textContent = res.results[0]?.session || sessionOf(new Date());
+    const btc = res.results.find(r=>r.symbol==='BTCUSDT');
+    if(btc){ $('btcPrice').textContent='$'+Number(btc.price).toLocaleString(); if(btc.range) $('btcBox').textContent=`Box H1: ${btc.range.low.toFixed(2)} – ${btc.range.high.toFixed(2)} (lebar ${(btc.range.widthPct*100).toFixed(2)}%)`; }
+    $('signals').innerHTML = res.results.map(r=>{
+      if(r.decision==='TRADE') return `<div class="sig ${r.setup.direction==='SHORT'?'short':''}"><b>✅ TRADE ${r.symbol} ${r.setup.direction} ${r.setup.type}</b> — Skor <b>${r.gate.score}</b> (Grade ${r.gate.grade})<div class="mono">${r.plan}</div><div class="mut">${r.gate.reasons.join(' • ')}</div><button data-take="${r.symbol}">Saya ambil setup ini (catat ke guard)</button></div>`;
+      return `<div class="sig" style="border-color:#232c3f"><b>⏸️ ${r.symbol}</b> — ${r.decision} <span class="mut">${r.reason||''}</span>${r.setup?` <span class="mut">| Setup ${r.setup.type} ${r.setup.direction} skor ${r.gate?.score??'-'}</span>`:''}</div>`;
+    }).join('');
+    document.querySelectorAll('[data-take]').forEach(b=>b.onclick=()=>{ const s=guardState(); s.tradesToday++; localStorage.setItem('metascalp_guard', JSON.stringify(s)); renderGuard(); b.textContent='Dicatat ✓'; b.disabled=true; });
+  }catch(e){ $('signals').innerHTML=`<p style="color:#fca5a5">Gagal scan: ${e.message}. Binance mungkin diblokir di jaringan ini — coba VPN / buka ulang, atau jalankan <code>node forward.mjs</code> di lokal.</p>`; }
+  $('scanBtn').disabled=false; $('scanBtn').textContent='🔍 Scan Live';
+};
+
+$('btBtn').onclick = async ()=>{
+  $('btOut').innerHTML='<span class="mut">Menjalankan backtest… (fetch 500 candle)</span>';
+  try{
+    const [h1,m15,m5,btcH1]=await Promise.all([fetchKlines('BTCUSDT','1h',500),fetchKlines('BTCUSDT','15m',500),fetchKlines('BTCUSDT','5m',500),fetchKlines('BTCUSDT','1h',500)]);
+    const res=runBacktest({symbol:'BTCUSDT',h1,m15,m5,btcH1});
+    const audit=auditBacktest(res.metrics,res.trades);
+    const m=res.metrics;
+    $('btOut').innerHTML=`<div class="kpi"><div><b>${m.trades}</b><span class="mut">trades</span></div><div><b>${(m.winRate*100).toFixed(1)}%</b><span class="mut">win rate</span></div><div><b>${m.avgR.toFixed(2)}R</b><span class="mut">expectancy</span></div><div><b>${m.profitFactor.toFixed(2)}</b><span class="mut">profit factor</span></div><div><b>${m.maxDrawdownR.toFixed(1)}R</b><span class="mut">max DD</span></div><div><b>${audit.verdict}</b><span class="mut">audit</span></div></div><div class="mut" style="margin-top:8px">${audit.checks.map(c=>`${c.name}: ${c.pass?'✅':'❌'} ${c.detail}`).join(' • ')}</div><div class="mut">${audit.warnings.join(' ')}</div>`;
+    $('btDetail').textContent='Per setup: '+JSON.stringify(m.byType,null,2);
+  }catch(e){ $('btOut').innerHTML=`<span style="color:#fca5a5">Gagal backtest: ${e.message}</span>`; }
+};
+$('calcBtn').onclick=()=>{
+  const entry=+$('cEntry').value, sl=+$('cSl').value, acct=+$('cAcct').value;
+  const s=positionSize({account:acct,riskPct:0.5,entry,sl});
+  if(!s){ $('calcOut').textContent='Entry / SL tidak valid'; return; }
+  $('calcOut').textContent=`Risk $: ${s.riskUsd.toFixed(2)} (0.5% akun)\nQty: ${s.qty.toFixed(6)}\nNotional: $${s.notional.toFixed(2)}\nMargin @${s.leverage}x: $${s.margin.toFixed(2)}\nTP1 (1.5R): ${(entry+Math.abs(entry-sl)*1.5).toFixed(2)} | TP2 (2.5R): ${(entry+Math.abs(entry-sl)*2.5).toFixed(2)}\nInvalidasi: jika harga tutup di bawah SL, keluar. Jangan geser SL menjauh.`;
+};
+</script></body></html>
