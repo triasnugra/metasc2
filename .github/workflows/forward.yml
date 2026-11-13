@@ -1,0 +1,21 @@
+name: Daily Forward Scan
+on:
+  schedule:
+    - cron: '0 13 * * *'
+  workflow_dispatch:
+jobs:
+  forward:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Forward scan
+        run: node forward.mjs --account 10000
+      - name: Upload scan
+        uses: actions/upload-artifact@v4
+        with:
+          name: forward-latest
+          path: data/forward-latest.json
+          if-no-files-found: warn
