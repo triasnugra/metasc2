@@ -3,7 +3,7 @@
 // Doctrine: docx "no tanggal postingan" — scalping only, low drawdown,
 // no chasing, precise entry, easy invalidation, Price Action + Heatmap.
 export const CONFIG = {
-  version: '1.0.0',
+  version: '1.0.1',
   engine: 'metascalp',
   // Universe — BTC leads, alts scalp. PEPE is explicitly "the coin for scalping".
   symbols: ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'PEPEUSDT', 'INJUSDT', 'LTCUSDT', 'HBARUSDT', 'TRBUSDT'],
@@ -55,6 +55,12 @@ export const CONFIG = {
     futuresDepth: 'https://fapi.binance.com/fapi/v1/depth',
     futuresTicker24h: 'https://fapi.binance.com/fapi/v1/ticker/24hr',
     futuresOpenInterest: 'https://fapi.binance.com/fapi/v1/openInterest',
+    // FIX 2026-11-13: US runners (GitHub westus2) get HTTP 451 from fapi.binance.com.
+    // data-api.binance.vision is Binance's market-data-only mirror, same spot
+    // endpoints, no geo-block, no key. Used as fallback, never as first choice.
+    visionKlines: 'https://data-api.binance.vision/api/v3/klines',
+    visionDepth: 'https://data-api.binance.vision/api/v3/depth',
+    visionTicker24h: 'https://data-api.binance.vision/api/v3/ticker/24hr',
   },
 };
 

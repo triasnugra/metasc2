@@ -50,7 +50,7 @@ function detectSweepReclaim({ symbol, h1, m15, price, L }) {
   const wickedBelow = Math.min(prev.l, curr.l) < sweepLowTarget;
   const sweptPct = wickedBelow ? (sweepLowTarget - Math.min(prev.l, curr.l)) / sweepLowTarget : 0;
   const reclaimed = curr.c > sweepLowTarget && curr.c > L.rangeH1.low;
-  if (trig.dir === 'LONG' && wickedBelow && sweptPct >= 0.0005 && sweptPct <= 0.012 && reclaimed) {
+  if (trig.dir === 'LONG' && wickedBelow && sweptPct >= 0.0005 && sweptPct <= 0.006 && reclaimed) {
     const entry = curr.c;
     const sl = Math.min(prev.l, curr.l) - L.atrM15 * 0.15;
     const tp1 = entry + (entry - sl) * CONFIG.risk.tp1R;
@@ -62,7 +62,7 @@ function detectSweepReclaim({ symbol, h1, m15, price, L }) {
   const wickedAbove = Math.max(prev.h, curr.h) > sweepHighTarget;
   const sweptPctH = wickedAbove ? (Math.max(prev.h, curr.h) - sweepHighTarget) / sweepHighTarget : 0;
   const reclaimedDown = curr.c < sweepHighTarget;
-  if (trig.dir === 'SHORT' && wickedAbove && sweptPctH >= 0.0005 && sweptPctH <= 0.012 && reclaimedDown) {
+  if (trig.dir === 'SHORT' && wickedAbove && sweptPctH >= 0.0005 && sweptPctH <= 0.006 && reclaimedDown) {
     const entry = curr.c;
     const sl = Math.max(prev.h, curr.h) + L.atrM15 * 0.15;
     const tp1 = entry - (sl - entry) * CONFIG.risk.tp1R;

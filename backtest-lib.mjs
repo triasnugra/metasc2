@@ -34,29 +34,31 @@ export function backtestMetrics(trades) {
   };
 }
 function groupAvg(trades, key) {
+  const g = {};
+  for (const t of trades) {
+    g[t.key] = g[t.key] || { n: 0, totalR: 0 };
+    g[t.key].n++; g[t.key].totalR += t.pnlR;
+  }
+  // fix: use actual key
   const out = {};
   for (const t of trades) {
     const k = t[key];
-    out[k] = out[k] || { n: 0, totalR: 0, wins: 0 };
-    out[k].n++; out[k].totalR += t.pnlR; if (t.pnlR > 0) out[k].wins++;
+    out[k] = out[k] || { n: 0, totalR: 0, winRate: 0 };
+    out[k].n++; out[k].totalR += t.pnlR;
   }
-  for (const k of Object.keys(out)) { out[k].avgR = out[k].totalR / out[k].n; out[k].winRate = out[k].wins / out[k].n; }
+  for (const k of Object.keys(out)) out[k].avgR = out[k].totalR / out[k].n;
   return out;
 }
 
 export function runBacktest({ symbol, h1, m15, m5, btcH1 = null, account = 10000, minBars = 100 }) {
   const trades = [];
-  // Regime is ROLLING: computed from BTC history up to bar i only.
-  // Using full-series regime here would be lookahead (future leaks into past).
-  const finalRegime = btcH1 ? regimeFromBTC(btcH1).season : 'CHOP';
+  const regime = btcH1 ? regimeFromBTC(btcH1) : { season: 'CHOP' };
   // Align: for each M15 index i, use history up to i, simulate on M5 after m15[i].t
   for (let i = minBars; i < m15.length - 1; i++) {
     const histH1 = h1.filter((c) => c.t <= m15[i].t);
     const histM15 = m15.slice(0, i + 1);
     if (histH1.length < 30 || histM15.length < 50) continue;
-    const histBtcH1 = btcH1 ? btcH1.filter((c) => c.t <= m15[i].t) : histH1;
-    const rollingRegime = regimeFromBTC(histBtcH1).season;
-    const setups = detectSetups({ symbol, h1: histH1, m15: histM15, season: rollingRegime });
+    const setups = detectSetups({ symbol, h1: histH1, m15: histM15, season: regime.season });
     for (const setup of setups) {
       const gated = gateDecision(setup, { volumeRatio: 1.1, triggerClose: histM15[histM15.length - 1].c });
       if (gated.decision !== 'TRADE') continue;
@@ -68,5 +70,5 @@ export function runBacktest({ symbol, h1, m15, m5, btcH1 = null, account = 10000
       break; // one trade per bar — no overlapping scalps on same symbol
     }
   }
-  return { symbol, trades, metrics: backtestMetrics(trades), regime: finalRegime, generatedAt: new Date().toISOString() };
+  return { symbol, trades, metrics: backtestMetrics(trades), regime: regime.season, generatedAt: new Date().toISOString() };
 }

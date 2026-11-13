@@ -98,21 +98,12 @@ export function findRange(candles, lookback = 48) {
   const low = Math.min(...lows(w));
   const mid = (high + low) / 2;
   const widthPct = (high - low) / mid;
-  // Touches: COUNT CLUSTERS, not candles. One visit to the edge = one touch,
-  // even if price spends 3 candles there. Cluster ends when price moves
-  // >0.5% away from the edge. Without this, every sideways range reads as
-  // "3rd touch" and every setup is wrongly rejected.
+  // Touches: candle came within 0.15% of the edge and reversed.
   const tol = 0.0015;
-  let touchesHigh = 0, touchesLow = 0, inHigh = false, inLow = false;
+  let touchesHigh = 0, touchesLow = 0;
   for (const c of w) {
-    const nearHigh = Math.abs(c.h - high) / high <= tol;
-    const nearLow = Math.abs(c.l - low) / low <= tol;
-    const awayHigh = Math.abs(c.c - high) / high > 0.005;
-    const awayLow = Math.abs(c.c - low) / low > 0.005;
-    if (nearHigh && !inHigh) { touchesHigh++; inHigh = true; }
-    if (awayHigh) inHigh = false;
-    if (nearLow && !inLow) { touchesLow++; inLow = true; }
-    if (awayLow) inLow = false;
+    if (Math.abs(c.h - high) / high <= tol) touchesHigh++;
+    if (Math.abs(c.l - low) / low <= tol) touchesLow++;
   }
   return { high, low, mid, widthPct, touchesHigh, touchesLow, bars: w.length, startT: w[0].t, endT: last(w).t };
 }
@@ -240,23 +231,46 @@ export function regimeFromBTC(btcH1, btcH4) {
 }
 
 // ---------- Binance public data (no key) ----------
-async function httpGet(url) {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`HTTP ${res.status} ${url}`);
-  return res.json();
+// FIX 2026-11-13: GitHub runner in westus2 gets HTTP 451 from fapi.binance.com
+// ("Service unavailable from a restricted location"). Browser in Indonesia hits
+// fapi fine, so order matters: try futures first (preserves futures data),
+// then fapi1/2 mirrors, then data-api.binance.vision (spot, no geo-block).
+// Spot klines/depth/ticker have the same shape as futures for what we use.
+// If ALL hosts fail, throw one error listing every attempt — never a bare 451.
+function timeoutSignal(ms = 15000) {
+  try {
+    if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') return AbortSignal.timeout(ms);
+  } catch {}
+  return undefined;
 }
+async function fetchFirst(urls) {
+  const errors = [];
+  for (const url of urls) {
+    try {
+      const res = await fetch(url, { signal: timeoutSignal() });
+      if (!res.ok) { errors.push(`HTTP ${res.status} ${url}`); continue; }
+      return await res.json();
+    } catch (e) {
+      errors.push(`${e.name || 'ERR'} ${e.message} @ ${url}`);
+    }
+  }
+  throw new Error(`All Binance hosts failed (if you see 451, it is the US geo-block, not your code). Tried: ${errors.join(' | ')}`);
+}
+async function httpGet(url) { return fetchFirst([url]); }
 export async function fetchKlines(symbol, interval, limit = 200, useFutures = true) {
-  const base = useFutures ? CONFIG.binance.futuresKlines : CONFIG.binance.spotKlines;
-  const url = `${base}?symbol=${symbol}&interval=${interval}&limit=${limit}`;
-  return normCandles(await httpGet(url));
+  const qs = `?symbol=${symbol}&interval=${interval}&limit=${limit}`;
+  const urls = useFutures
+    ? [CONFIG.binance.futuresKlines + qs, 'https://fapi1.binance.com/fapi/v1/klines' + qs, 'https://fapi2.binance.com/fapi/v1/klines' + qs, CONFIG.binance.visionKlines + qs, CONFIG.binance.spotKlines + qs]
+    : [CONFIG.binance.spotKlines + qs, CONFIG.binance.visionKlines + qs];
+  return normCandles(await fetchFirst(urls));
 }
 export async function fetchDepth(symbol, limit = 100) {
-  const url = `${CONFIG.binance.futuresDepth}?symbol=${symbol}&limit=${limit}`;
-  return httpGet(url);
+  const qs = `?symbol=${symbol}&limit=${limit}`;
+  return fetchFirst([CONFIG.binance.futuresDepth + qs, CONFIG.binance.visionDepth + qs, 'https://api.binance.com/api/v3/depth' + qs]);
 }
 export async function fetchTicker24h(symbol) {
-  const url = `${CONFIG.binance.futuresTicker24h}?symbol=${symbol}`;
-  return httpGet(url);
+  const qs = `?symbol=${symbol}`;
+  return fetchFirst([CONFIG.binance.futuresTicker24h + qs, CONFIG.binance.visionTicker24h + qs, 'https://api.binance.com/api/v3/ticker/24hr' + qs]);
 }
 // Heatmap proxy: depth walls within X% of price. Real heatmap is paid;
 // this is the honest proxy — Price Action leads, depth only confirms.

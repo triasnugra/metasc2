@@ -7,11 +7,9 @@ import { CONFIG } from './config.mjs';
 import { fetchKlines } from './core.mjs';
 import { runBacktest } from './backtest-lib.mjs';
 import { auditBacktest } from './audit-gate.mjs';
+import { parseArgs } from './args.mjs';
 
-const args = Object.fromEntries(process.argv.slice(2).map((a) => {
-  const [k, v] = a.replace(/^--/, '').split('=');
-  return [k, v ?? true];
-}));
+const args = parseArgs(); // supports --symbol BTCUSDT AND --symbol=BTCUSDT
 const symbol = args.symbol || 'BTCUSDT';
 const limit = Number(args.limit || 500);
 

@@ -4,11 +4,9 @@
 import fs from 'node:fs';
 import { CONFIG } from './config.mjs';
 import { scanMarket } from './forward-lib.mjs';
+import { parseArgs } from './args.mjs';
 
-const args = Object.fromEntries(process.argv.slice(2).map((a) => {
-  const [k, v] = a.replace(/^--/, '').split('=');
-  return [k, v ?? true];
-}));
+const args = parseArgs(); // supports --account 10000 AND --account=10000
 const account = Number(args.account || 10000);
 
 async function main() {
